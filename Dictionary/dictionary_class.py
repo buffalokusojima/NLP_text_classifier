@@ -12,14 +12,11 @@ from util import util
 
 # 定数宣言
 
-ROOT_DIR = '.'
-DATA_PATH = '/text'
 FILE_NAME= '*.wakati'
 DICTIONARY_NAME = 'dictionary.txt'
 LABEL_NAME = '/labels'
-WORD_LIST = '/word_list'
-WORD_LIST_FILE = 'word_list.pkl'
-WORD_LIST_FILENAME = '/word_list_file_name' 
+WORD_LIST = 'word_list.pkl'
+
 
 class Dictionary():
 
@@ -44,25 +41,7 @@ class Dictionary():
     def __get_label(self, inputPath):
 
         return util.get_path_list(inputPath)
-
-
-    def __deal():
-        word_list = []
-        for l in label:
-            w_list = []
-            for path in glob.glob(ROOT_DIR+ROOT_DIR+DATA_PATH+'/'+l+FILE_NAME, recursive=True):
-                if os.path.isdir(path):
-                    continue
-                text = open(path, "r", encoding='utf-8').read()
-                word_list.append(text.split())
-                #f_list.append(path.split("/")[-1].split(".")[0])
-                w_list.append({'text': text.split(), 'file': path.split("/")[-1].split(".")[0]})
-            with open(ROOT_DIR+ROOT_DIR+DATA_PATH+"/"+l+"/"+WORD_LIST_FILE, "wb") as f:
-                pickle.dump(w_list, f)
     
-        with open(ROOT_DIR+WORD_LIST, "wb") as f:
-            pickle.dump(word_list, f)
-
 
     def __make_medium_word_list(self, inputPath, outputPath):
     
@@ -77,7 +56,7 @@ class Dictionary():
             self.__make_word_list_folder(path, outputPath)
             self.__write_word_list(os.path.join(outputPath,WORD_LIST_FILE), word_list)
 
-    def __make_medium_dictionary(self, inputPath, outputPath):
+    def __make_medium_dictionary(self, inputPath, outputPath, no_below, no_above, keep_n):
 
         if not os.path.isdir(inputPath):
             print("Folder:",inputPath,"does not exist")
@@ -88,11 +67,12 @@ class Dictionary():
             if not os.path.isdir(path):
                 continue
             print(outputPath)
-            w_list, t_list = self.__make_word_list_folder(path, outputPath)
+            w_list = self.__get_word_list_folder(path, outputPath)
             
             if w_list is not None and w_list is not []:
-                word_list.extend(t_list)
-        self.__make_dictionary(outputPath, word_list)
+                word_list.extend(w_list)
+        
+        self.__make_dictionary(outputPath, word_list, no_below, no_above, keep_n)
 
     def __make_word_list_folder(self, inputPath, outputPath):
         
@@ -108,6 +88,21 @@ class Dictionary():
         text_list = [word['text'] for word in word_list]
         return word_list, text_list
 
+    def __get_word_list_folder(self, inputPath, outputPath):
+    
+        if not os.path.isdir(inputPath):
+            print("Folder:",inputPath,"does not exist")
+            return
+        outputPath = os.path.join(outputPath, inputPath.split(self.PATH_SLASH)[-1])
+        if not os.path.isdir(outputPath):
+            os.mkdir(outputPath)
+        print(outputPath)
+        
+        word_list = self.__get_word_list(inputPath)
+        
+        word_list = [word['text'] for word in word_list]
+        
+        return word_list
 
     def __make_word_list(self, inputPath, outputPath):
     
@@ -120,16 +115,24 @@ class Dictionary():
         
         return word_list
 
+    def __get_word_list(self, inputPath):
+    
+        with open(os.path.join(inputPath, WORD_LIST), "rb") as f:
+            word_list = pickle.load(f)
+
+        return word_list
+
+
     def __write_word_list(self, file, word_list):
         with open(file, "wb") as f:
             pickle.dump(word_list, f)
 
     # 辞書作成
-    def __make_dictionary(self, outputPath, word_list):
+    def __make_dictionary(self, outputPath, word_list, no_below=200, no_above=0.5, keep_n=10000):
         
         dictionary = corpora.Dictionary(word_list)
 
-        dictionary.filter_extremes(no_below = 200, no_above = 0.2)
+        dictionary.filter_extremes(no_below = no_below, no_above = no_above, keep_n=keep_n)
 
         dictionary.save_as_text(os.path.join(outputPath, DICTIONARY_NAME))
 
@@ -142,6 +145,6 @@ class Dictionary():
 
         self.__make_medium_word_list(self.INPUT_PATH, self.OUTPUT_PATH)
 
-    def make_medium_dictionary(self):
+    def make_medium_dictionary(self, no_below=200, no_above=0.5, keep_n=10000):
 
-        self.__make_medium_dictionary(self.INPUT_PATH, self.OUTPUT_PATH)
+        self.__make_medium_dictionary(self.INPUT_PATH, self.OUTPUT_PATH, no_below=no_below, no_above=no_above, keep_n=keep_n)

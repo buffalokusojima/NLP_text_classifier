@@ -2,9 +2,13 @@ import glob
 import os
 import random
 
+
+"""
+   インプット下のフォルダをラベルとして返す
+"""
 def get_path_list(root):
     list = []
-    for path in glob.glob(root+'/*'):
+    for path in glob.glob(os.path.join(root,"*"), recursive=False):
         if not os.path.isdir(path):
             continue
         list.append(path.split('/')[-1])
