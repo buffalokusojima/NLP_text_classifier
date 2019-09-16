@@ -6,145 +6,189 @@ import glob
 import sys
 import os
 import pickle
+import platform
 
 sys.path.append('../')
 from util import util
 
 # 定数宣言
-
-FILE_NAME= '*.wakati'
 DICTIONARY_NAME = 'dictionary.txt'
-LABEL_NAME = '/labels'
 WORD_LIST = 'word_list.pkl'
 
 
 class Dictionary():
 
-    def __init__(self, inputPath, outputPath):
+    # 必要なパラメータを設定
+    def __init__(self, inputPath, outputPath, no_below=200, no_above=0.5, keep_n=10000):
         
         self.INPUT_PATH = inputPath
-        self.OUTPUT_PATH = outputPath
+        self.OUTPUT_PATH = outputPath + "-no_below" + str(no_below) + "-no_above" + str(no_above) + "-keep_n" + str(keep_n)
+        self.NO_BELOW = no_below #最低頻出回数
+        self.NO_ABOVE = no_above #最高頻出割合
+        self.KEEP_N = keep_n     #辞書の最大長
         
-        self.LABEL = self.__get_label(self.INPUT_PATH)
-        
-        if not os.path.isdir(outputPath):
+        if not os.path.isdir(self.OUTPUT_PATH):
             os.mkdir(self.OUTPUT_PATH)
             print(self.OUTPUT_PATH, "made")
 
-        self.PATH_SLASH = "/"
+        if platform.system() == 'Windows':
+            self.PATH_SLASH = "\\"
+        else:
+            self.PATH_SLASH = "/"
             
-
+    #パスの確認
     def show_path(self):
         print(self.INPUT_PATH, self.OUTPUT_PATH)
 
+            
+    #中分類の辞書作成
+    def __make_medium_dictionary(self, inputPath=None, outputPath=None):
 
-    def __get_label(self, inputPath):
-
-        return util.get_path_list(inputPath)
-    
-
-    def __make_medium_word_list(self, inputPath, outputPath):
-    
+        if inputPath is None:
+            inputPath = self.INPUT_PATH
+        
+        if outputPath is None:
+            outputPath = self.OUTPUT_PATH
+            
+        
+        #パラメータであるインプットフォルダの存在を確認
         if not os.path.isdir(inputPath):
             print("Folder:",inputPath,"does not exist")
             return
         
-        for path in glob.glob(os.path.join(inputPath, "*"), recursive=False):
-            if not os.path.isdir(path):
-                continue
-            print(outputPath)
-            self.__make_word_list_folder(path, outputPath)
-            self.__write_word_list(os.path.join(outputPath,WORD_LIST_FILE), word_list)
+        #パラメータであるアウトプットフォルダーの作成
+        if not os.path.isdir(outputPath):
+            os.mkdir(outputPath)
 
-    def __make_medium_dictionary(self, inputPath, outputPath, no_below, no_above, keep_n):
-
-        if not os.path.isdir(inputPath):
-            print("Folder:",inputPath,"does not exist")
-            return
         
+        #パラメータであるインプットフォルダの直下を捜査
         word_list = []
         for path in glob.glob(os.path.join(inputPath, "*"), recursive=False):
+            
+            #ファイルは飛ばす
             if not os.path.isdir(path):
                 continue
-            print(outputPath)
-            w_list = self.__get_word_list_folder(path, outputPath)
+           
+            #指定したフォルダ内のファイルにある内容をすべて並べたリストを取得
+            w_list = self.__get_word_list_folder(path)
             
-            if w_list is not None and w_list is not []:
+            #Noneまたは空でなければword_listに結合する
+            if w_list:
                 word_list.extend(w_list)
         
-        self.__make_dictionary(outputPath, word_list, no_below, no_above, keep_n)
-
-    def __make_word_list_folder(self, inputPath, outputPath):
+        #Noneまたは空でなければ辞書作成を行う
+        if word_list:
+            
+            
+            #大分類用にword_listを保存しておく
+            util.write_word_list(outputPath, word_list)
+            
+            word_list = [word['text'] for word in word_list]
+            
+            #中分類のファイル全ての内容をリストにしたものから辞書を作成する
+            dictionary = self.__make_dictionary(outputPath, word_list, self.NO_BELOW, self.NO_ABOVE, self.KEEP_N)
         
-        if not os.path.isdir(inputPath):
-            print("Folder:",inputPath,"does not exist")
-            return
-        outputPath = os.path.join(outputPath, inputPath.split(self.PATH_SLASH)[-1])
-        if not os.path.isdir(outputPath):
-            os.mkdir(outputPath)
-        print(outputPath)
-        
-        word_list = self.__make_word_list(inputPath, outputPath)
-        text_list = [word['text'] for word in word_list]
-        return word_list, text_list
-
-    def __get_word_list_folder(self, inputPath, outputPath):
-    
-        if not os.path.isdir(inputPath):
-            print("Folder:",inputPath,"does not exist")
-            return
-        outputPath = os.path.join(outputPath, inputPath.split(self.PATH_SLASH)[-1])
-        if not os.path.isdir(outputPath):
-            os.mkdir(outputPath)
-        print(outputPath)
-        
-        word_list = self.__get_word_list(inputPath)
-        
-        word_list = [word['text'] for word in word_list]
-        
+            return word_list, dictionary
+            
         return word_list
-
-    def __make_word_list(self, inputPath, outputPath):
-    
+        
+        
+    #大分類の辞書作成
+    def __make_major_dictionary(self):
+        
+        #パラメータであるインプットフォルダの存在を確認
+        if not os.path.isdir(self.INPUT_PATH):
+            print("Folder:",self.INPUT_PATH,"does not exist")
+            return
+        
+        
         word_list = []
-        for file in glob.glob(os.path.join(inputPath, FILE_NAME), recursive=False):
-            if os.path.isdir(file):
+        for path in glob.glob(os.path.join(self.INPUT_PATH, "*"), recursive=True):
+            w_list = os.path.join(path, WORD_LIST)
+            if os.path.isfile(w_list):
+                word_list.extend(w_list)
                 continue
-            text = open(file, "r", encoding='utf-8').read()
-            word_list.append({'text': text.split(), 'file': file.split(self.PATH_SLASH)[-1].split(".")[0]})
+                
+            outputPath = os.path.join(self.OUTPUT_PATH, os.path.basename(path))
+            print(outputPath)
+            
+            #アウトプットフォルダーの作成
+            if not os.path.isdir(outputPath):
+                os.mkdir(outputPath)
+                
+            w_list = self.__make_medium_dictionary(inputPath=path, outputPath=outputPath)
+            
+            util.write_word_list(outputPath, word_list)
+            if w_list:
+                word_list.extend(w_list)
+            
+        if not word_list:
+            print("Cannot make Dictionary")
+            return
         
-        return word_list
+        dictionary = self.__make_dictionary(self.OUTPUT_PATH, word_list)
+        
+        return dictionary
 
-    def __get_word_list(self, inputPath):
     
-        with open(os.path.join(inputPath, WORD_LIST), "rb") as f:
-            word_list = pickle.load(f)
-
-        return word_list
-
-
-    def __write_word_list(self, file, word_list):
-        with open(file, "wb") as f:
-            pickle.dump(word_list, f)
-
-    # 辞書作成
-    def __make_dictionary(self, outputPath, word_list, no_below=200, no_above=0.5, keep_n=10000):
+    #指定したフォルダ内のファイルの内容をリストにしたものを返す
+    def __get_word_list_folder(self, inputPath):
+    
+        #指定したフォルダが存在しなければ終了
+        if not os.path.isdir(inputPath):
+            print("Folder:",inputPath,"does not exist")
+            return
         
+        #引数のパス直下にあるword_listを取得する
+        try:
+            word_list = util.get_word_list(inputPath)
+        except:
+            print("Word list Not Found:", inputPath)
+            return
+        
+        #word_listを辞書作成用にテキスト部のみを抽出する
+        if not word_list:
+            return
+        
+        
+        #word_listの内容がstrの場合、リストに変換して配列に格納
+        util.check_word_list_type(word_list)
+        
+        return word_list
+    
+            
+    # 辞書作成
+    def __make_dictionary(self, outputPath, word_list, no_below=None, no_above=None, keep_n=None):
+        
+        if no_below is None:
+            no_below = self.NO_BELOW
+        
+        if no_above is None:
+            no_above = self.NO_ABOVE
+            
+        if keep_n is None:
+            keep_n = self.KEEP_N
+            
+        
+        #辞書作成
         dictionary = corpora.Dictionary(word_list)
 
+        #辞書精査
         dictionary.filter_extremes(no_below = no_below, no_above = no_above, keep_n=keep_n)
 
+        #辞書保存
         dictionary.save_as_text(os.path.join(outputPath, DICTIONARY_NAME))
 
-                             
-    def make_word_list_folder(self, inputPath, outputPath):
+        print("Dictionary made:", outputPath)
         
-        self.__make_word_list_folder(inputPath, outputPath)
+        return dictionary
+        
+    def make_medium_dictionary(self):
 
-    def make_medium_word_list(self):
-
-        self.__make_medium_word_list(self.INPUT_PATH, self.OUTPUT_PATH)
-
-    def make_medium_dictionary(self, no_below=200, no_above=0.5, keep_n=10000):
-
-        self.__make_medium_dictionary(self.INPUT_PATH, self.OUTPUT_PATH, no_below=no_below, no_above=no_above, keep_n=keep_n)
+        word_list, dictionary = self.__make_medium_dictionary()
+        
+        return word_list, dictionary
+        
+    def make_major_dictionary(self):
+        
+        dictionary = self.__make_major_dictionary()
